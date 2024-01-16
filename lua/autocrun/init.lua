@@ -4,22 +4,43 @@ local api = vim.api
 local M = {} -- Module
 M.opts = {}
 
--- INFO: Validates if there is a `main` function on the file saved
 -- INFO: Validates if there is a `gcc` compiler
+-- INFO: Validates if ther is a buffer open
 
 -- TODO: Add the following options to opt:
 --  compiler_cmd: string e.g `gcc` or `g++`
 --  compiler_args: string e.g `-O3`
 --  output_file: string e.g `main`
+--
+
+---@param filepath string
+M.has_main_on_file = function(filepath)
+  for line in io.lines(filepath) do
+    if string.find(line, "int main(") then
+      return true
+    end
+  end
+end
 
 
-
----@param data table
-M.write_file = function (data)
-    -- TODO: check if buff is open
-
-    vim.fn.win_findbuf()
-    vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, data)
+---@param filepath string
+M.execute = function (filepath)
+  api.nvim_command("vsplit new")
+  local bufnr = api.nvim_get_current_buf()
+  local cmd = "gcc " .. filepath .. " -o main.c "
+  local job_id = vim.fn.jobstart(cmd, {
+    stdout_buffered = true,
+    on_stdout = function (_, data)
+      if #data == #{ "" } then
+        vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, {"Success compiling your C code!"})
+      end
+    end,
+    on_stderr = function (_, data)
+      if data then
+          vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, data)
+      end
+    end,
+  })
 end
 
 ---@param info table<string, string | number>
@@ -38,23 +59,13 @@ M.callback = function (info)
 
     ]] --
 
-  api.nvim_command("vsplit new")
-  local bufnr = api.nvim_get_current_buf()
 
-  local cmd = "gcc " .. info.match .. " -o main.c"
-  vim.fn.jobstart(cmd, {
-    stdout_buffered = true,
-    on_stdout = function (_, data)
-      if data then
-          vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, data)
-      end
-    end,
-    on_stderr = function (_, data)
-      if data then
-          vim.api.nvim_buf_set_lines(bufnr, -1, -1, false, data)
-      end
-    end,
-  })
+  local has_main = M.has_main_on_file(tostring(info.match))
+  if has_main then
+    M.execute(info.match)
+  else
+    print("No main function found on this file!")
+  end
 end
 
 ---@param opts table
