@@ -6,17 +6,20 @@ M.opts = {}
 
 -- INFO: Validates if there is a `gcc` compiler
 -- INFO: Validates if ther is a buffer open
+-- functions might uses:
+--   - nvim_list_bufs
+--   - nvim_create_buf
+--   - nvim_open_win
+--
+-- INFO: If the file has no `main` function, ask for the user if he wants to compile
 
 -- TODO: Add the following options to opt:
---  compiler_cmd: string e.g `gcc` or `g++`
 --  compiler_args: string e.g `-O3`
---  output_file: string e.g `main`
---
 
 ---@param filepath string
 M.has_main_on_file = function(filepath)
   for line in io.lines(filepath) do
-    if string.find(line, "int main(") then
+    if string.find(line, "int main%(") then
       return true
     end
   end
@@ -25,9 +28,28 @@ end
 
 ---@param filepath string
 M.execute = function (filepath)
-  api.nvim_command("vsplit new")
-  local bufnr = api.nvim_get_current_buf()
-  local cmd = "gcc " .. filepath .. " -o main.c "
+
+  local bufnr = api.nvim_create_buf(false, true)
+
+  local ui = api.nvim_list_uis()[1]
+  local col = 12
+  if ui ~= nil then
+    col = math.max(ui.width - 13, 0)
+  end
+
+  local win_id = api.nvim_open_win(bufnr, true, {
+     relative = "editor",
+     anchor = "NW",
+     row = 1,
+     col = col,
+     width = 40,
+     height = 3,
+     border = "rounded",
+     title = "Autocrun",
+     style = "minimal"
+  })
+
+  local cmd = M.opts.cmd ..  " " .. filepath .. " -o " .. M.opts.output_filename
   local job_id = vim.fn.jobstart(cmd, {
     stdout_buffered = true,
     on_stdout = function (_, data)
@@ -71,9 +93,10 @@ end
 ---@param opts table
 M.setup = function (opts)
   M.opts = opts
+  print(vim.inspect(opts))
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = vim.api.nvim_create_augroup("AutoCRun", { clear = true }),
-    pattern = "*.c",
+    pattern = M.opts.pattern or "*.c",
     callback = M.callback
   })
 end
