@@ -93,7 +93,6 @@ end
 ---@param opts table
 M.setup = function (opts)
   M.opts = opts
-  print(vim.inspect(opts))
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = vim.api.nvim_create_augroup("AutoCRun", { clear = true }),
     pattern = M.opts.pattern or "*.c",
